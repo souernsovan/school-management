@@ -30,6 +30,7 @@ php artisan db:seed --class=SchoolClassSeeder --force && echo "SchoolClassSeeder
 php artisan db:seed --class=TeacherSeeder --force && echo "TeacherSeeder done." || echo "TeacherSeeder failed."
 php artisan db:seed --class=SubjectSeeder --force && echo "SubjectSeeder done." || echo "SubjectSeeder failed."
 php artisan db:seed --class=StudentSeeder --force && echo "StudentSeeder done." || echo "StudentSeeder failed."
+php artisan db:seed --class=AdminUserSeeder --force && echo "AdminUserSeeder done." || echo "AdminUserSeeder failed."
 # Start php-fpm in background, nginx in foreground
 php-fpm -D
 nginx -g 'daemon off;'
