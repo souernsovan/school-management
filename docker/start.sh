@@ -3,6 +3,9 @@
 PORT="${PORT:-8080}"
 sed "s/__PORT__/${PORT}/" /etc/nginx/http.d/default.conf.template > /etc/nginx/http.d/default.conf
 
+# Build front-end assets
+npm run build && echo "Assets built." || echo "npm build failed."
+
 php artisan storage:link || true
 php artisan config:cache
 php artisan route:cache
