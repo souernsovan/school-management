@@ -4,9 +4,7 @@ PORT="${PORT:-8080}"
 sed "s/__PORT__/${PORT}/" /etc/nginx/http.d/default.conf.template > /etc/nginx/http.d/default.conf
 
 php artisan storage:link || true
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+php artisan optimize
 
 # Wait for DB to be ready (up to 30 seconds)
 echo "Waiting for database..."
