@@ -34,6 +34,21 @@ class NotificationController extends Controller
 
         $target = $notification->data['url'] ?? null;
 
+        // Fix old notification URLs that predate the /admin prefix
+        if ($target && !str_starts_with($target, '/admin')) {
+            $adminPaths = [
+                '/students', '/teachers', '/school-classes', '/subjects',
+                '/timetables', '/attendances', '/exams', '/exam-types',
+                '/reports', '/student-results', '/link-accounts', '/users',
+            ];
+            foreach ($adminPaths as $path) {
+                if (str_starts_with($target, $path)) {
+                    $target = '/admin' . $target;
+                    break;
+                }
+            }
+        }
+
         return $target
             ? redirect()->to($target)
             : redirect()->route('notifications.index');
