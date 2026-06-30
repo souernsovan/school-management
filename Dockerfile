@@ -1,4 +1,4 @@
-FROM php:8.3-fpm-alpine
+FROM php:8.4-fpm-alpine
 
 # System deps + PHP extensions (mysql AND pgsql so either DB works)
 RUN apk add --no-cache \
