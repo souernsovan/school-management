@@ -19,7 +19,7 @@ COPY . .
 # Install PHP + JS deps and build front-end assets
 RUN composer install --no-dev --optimize-autoloader --no-interaction \
     && npm ci && npm run build \
-    && chown -R www-data:www-data storage bootstrap/cache
+    && chown -R www-data:www-data storage bootstrap/cache public/build
 
 # Nginx config (port substituted at runtime) + start script
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf.template
