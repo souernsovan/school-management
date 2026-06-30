@@ -153,18 +153,37 @@
                     <a href="{{ route('exams.index') }}" class="text-xs text-blue-600 hover:underline font-medium">View all →</a>
                 </div>
 
-                <div class="grid grid-cols-3 gap-3 mb-4">
-                    <div class="rounded-2xl bg-blue-50 p-3">
-                        <p class="text-[11px] font-semibold uppercase tracking-wide text-blue-500">Upcoming</p>
-                        <p class="mt-1 text-xl font-bold text-blue-700">{{ $examStats['upcoming'] }}</p>
+                {{-- Donut chart + legend --}}
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="relative shrink-0">
+                        <canvas id="examDonut" width="110" height="110"></canvas>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <span class="text-lg font-bold text-slate-800">{{ $examStats['upcoming'] + $examStats['thisWeek'] + $examStats['past'] }}</span>
+                            <span class="text-[10px] text-slate-400 font-medium">Total</span>
+                        </div>
                     </div>
-                    <div class="rounded-2xl bg-emerald-50 p-3">
-                        <p class="text-[11px] font-semibold uppercase tracking-wide text-emerald-500">This week</p>
-                        <p class="mt-1 text-xl font-bold text-emerald-700">{{ $examStats['thisWeek'] }}</p>
-                    </div>
-                    <div class="rounded-2xl bg-slate-50 p-3">
-                        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Past</p>
-                        <p class="mt-1 text-xl font-bold text-slate-700">{{ $examStats['past'] }}</p>
+                    <div class="flex-1 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0"></span>
+                                <span class="text-xs text-slate-500">Upcoming</span>
+                            </div>
+                            <span class="text-sm font-bold text-slate-800">{{ $examStats['upcoming'] }}</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                <span class="text-xs text-slate-500">This week</span>
+                            </div>
+                            <span class="text-sm font-bold text-slate-800">{{ $examStats['thisWeek'] }}</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-slate-300 shrink-0"></span>
+                                <span class="text-xs text-slate-500">Past</span>
+                            </div>
+                            <span class="text-sm font-bold text-slate-800">{{ $examStats['past'] }}</span>
+                        </div>
                     </div>
                 </div>
 
@@ -294,6 +313,33 @@
                     scales: {
                         x: { stacked:true, grid:{ display:false }, ticks:{ font:{ size:11 } } },
                         y: { stacked:true, beginAtZero:true, grid:{ color:'#f1f5f9' }, ticks:{ precision:0, font:{ size:11 } } }
+                    }
+                }
+            });
+        }
+
+        // Exam donut
+        var examDonutEl = document.getElementById('examDonut');
+        if (examDonutEl) {
+            var es = @json($examStats);
+            new Chart(examDonutEl, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Upcoming', 'This Week', 'Past'],
+                    datasets: [{
+                        data: [es.upcoming, es.thisWeek, es.past],
+                        backgroundColor: ['#3b82f6', '#22c55e', '#cbd5e1'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff',
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: function(ctx){ return ' ' + ctx.label + ': ' + ctx.parsed; } } }
                     }
                 }
             });
