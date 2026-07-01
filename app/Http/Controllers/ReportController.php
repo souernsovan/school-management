@@ -6,22 +6,26 @@ use App\Models\Exam;
 use App\Models\ExamResult;
 use App\Models\SchoolClass;
 use App\Models\Student;
+use App\Traits\GradeHelper;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class ReportController extends Controller
 {
+    use GradeHelper;
     // Shared data-building logic
     private function buildReport(Request $request): array
     {
-        $class    = SchoolClass::findOrFail($request->class_id);
-        $students = $class->students()->orderBy('first_name')->get();
+        $class     = SchoolClass::findOrFail($request->class_id);
+        $students  = $class->students()->orderBy('first_name')->get();
         $firstType = Exam::types()[0] ?? '';
         $examType  = $request->input('type', $firstType);
+        $month     = (int) $request->input('month', 0);
 
         $exams = Exam::with('subject')
             ->where('class_id', $class->id)
             ->where('type', $examType)
+            ->when($month > 0, fn($q) => $q->whereMonth('exam_date', $month))
             ->orderBy('subject_id')
             ->orderBy('exam_date', 'desc')
             ->get()
@@ -47,21 +51,51 @@ class ReportController extends Controller
 
         $students = $students->sortBy(fn($s) => $rankMap[$s->id] ?? 999)->values();
 
-        return compact('class', 'students', 'exams', 'allResults', 'examType', 'grandTotal', 'rankMap');
+        return compact('class', 'students', 'exams', 'allResults', 'examType', 'month', 'grandTotal', 'rankMap');
     }
 
     public function index(Request $request)
     {
-        $classes   = SchoolClass::orderBy('name')->get();
-        $examTypes = Exam::types();
+        $classes         = SchoolClass::orderBy('name')->get();
+        $examTypes       = Exam::types();
+        $availableMonths = collect();
 
         if (! $request->filled('class_id')) {
-            return view('admin.reports.index', compact('classes', 'examTypes'));
+            return view('admin.reports.index', compact('classes', 'examTypes', 'availableMonths'));
+        }
+
+        $examType = $request->input('type', $examTypes[0] ?? '');
+        $month    = $request->input('month', '');
+
+        $availableMonths = Exam::where('class_id', $request->class_id)
+            ->when($examType !== '', fn($q) => $q->where('type', $examType))
+            ->whereNotNull('exam_date')
+            ->selectRaw('MONTH(exam_date) as m')
+            ->distinct()
+            ->orderBy('m')
+            ->pluck('m')
+            ->map(fn($m) => (int) $m);
+
+        if ($availableMonths->isNotEmpty()) {
+            $currentMonth = (int) now()->month;
+            $monthInt     = (int) $month;
+
+            if ($month === '' || ! $availableMonths->contains($monthInt)) {
+                $default = $availableMonths->contains($currentMonth)
+                    ? $currentMonth
+                    : $availableMonths->first();
+
+                return redirect()->route('reports.index', array_filter([
+                    'class_id' => $request->class_id,
+                    'type'     => $examType,
+                    'month'    => $default,
+                ], fn($v) => $v !== ''));
+            }
         }
 
         $data = $this->buildReport($request);
 
-        return view('admin.reports.index', array_merge($data, compact('classes', 'examTypes')));
+        return view('admin.reports.index', array_merge($data, compact('classes', 'examTypes', 'availableMonths')));
     }
 
     public function exportCsv(Request $request)
@@ -127,14 +161,17 @@ class ReportController extends Controller
         $request->validate(['class_id' => 'required|exists:school_classes,id']);
         $data = $this->buildReport($request);
 
-        $gradeInfo = fn(float $pct): array => match (true) {
-            $pct >= 90 => ['label' => 'A+', 'color' => '#059669'],
-            $pct >= 80 => ['label' => 'A',  'color' => '#059669'],
-            $pct >= 70 => ['label' => 'B+', 'color' => '#2563eb'],
-            $pct >= 60 => ['label' => 'B',  'color' => '#2563eb'],
-            $pct >= 50 => ['label' => 'C',  'color' => '#d97706'],
-            $pct >= 40 => ['label' => 'D',  'color' => '#ea580c'],
-            default    => ['label' => 'F',  'color' => '#dc2626'],
+        $gradeInfo = function (float $pct): array {
+            $label = self::gradeFromPct($pct);
+            $color = match ($label) {
+                'A+', 'A' => '#059669',
+                'B+', 'B' => '#2563eb',
+                'C'       => '#0d9488',
+                'D'       => '#d97706',
+                'E'       => '#ea580c',
+                default   => '#dc2626',
+            };
+            return ['label' => $label, 'color' => $color];
         };
 
         $pdf = Pdf::loadView('admin.reports.pdf', array_merge($data, compact('gradeInfo')))
@@ -150,67 +187,106 @@ class ReportController extends Controller
         $classes   = SchoolClass::orderBy('name')->get();
         $examTypes = Exam::types();
 
+        $firstClass = $classes->first();
+        if (! $request->filled('class_id') && $firstClass) {
+            return redirect()->route('reports.rankings', ['class_id' => $firstClass->id]);
+        }
+
         if (! $request->filled('class_id')) {
             return view('admin.reports.rankings', compact('classes', 'examTypes'));
         }
 
-        $class     = SchoolClass::findOrFail($request->class_id);
-        $examType  = $request->input('type', '');
-        $students  = Student::where('class_id', $class->id)->orderBy('first_name')->get();
+        $class    = SchoolClass::findOrFail($request->class_id);
+        $examType = $request->input('type', '');
+        $month    = $request->input('month', '');
+        $students = Student::where('class_id', $class->id)->orderBy('first_name')->get();
 
-        $examQuery = Exam::where('class_id', $class->id);
-        if ($examType !== '') {
-            $examQuery->where('type', $examType);
-        }
-        $examIds   = $examQuery->pluck('id');
-        $maxTotal  = $examQuery->sum('total_marks');
+        // Available months for this class/type
+        $availableMonths = Exam::where('class_id', $class->id)
+            ->when($examType !== '', fn($q) => $q->where('type', $examType))
+            ->whereNotNull('exam_date')
+            ->selectRaw('MONTH(exam_date) as m')
+            ->distinct()
+            ->orderByDesc('m')
+            ->pluck('m')
+            ->map(fn($m) => (int) $m);
 
-        $allResults = ExamResult::whereIn('exam_id', $examIds)
-            ->get()
-            ->groupBy('student_id');
+        if ($availableMonths->isNotEmpty()) {
+            $currentMonth = (int) now()->month;
+            $monthInt     = (int) $month;
 
-        // Build ranked list
-        $rows = $students->map(function ($student) use ($allResults, $maxTotal) {
-            $obtained = $allResults->get($student->id)?->sum('marks_obtained') ?? 0;
-            $pct      = $maxTotal > 0 ? ($obtained / $maxTotal) * 100 : 0;
-            return [
-                'student'  => $student,
-                'obtained' => $obtained,
-                'pct'      => round($pct, 1),
-                'grade'    => $this->gradeLabel($pct),
-            ];
-        })->sortByDesc('pct')->values();
+            // Auto-redirect only when month is completely absent from URL (not when set to 0)
+            if ($month === '' && ! $request->has('month')) {
+                $default = $availableMonths->contains($currentMonth)
+                    ? $currentMonth
+                    : $availableMonths->first();
 
-        // Assign ranks with tie support — convert to plain array to allow mutation
-        $rowsArr = $rows->toArray();
-        $rank    = 1;
-        foreach ($rowsArr as $i => &$row) {
-            if ($i > 0 && $row['pct'] === $rowsArr[$i - 1]['pct']) {
-                $row['rank'] = $rowsArr[$i - 1]['rank'];
-            } else {
-                $row['rank'] = $rank;
+                return redirect()->route('reports.rankings', array_filter([
+                    'class_id' => $request->class_id,
+                    'type'     => $examType,
+                    'month'    => $default,
+                ], fn($v) => $v !== ''));
             }
-            $rank++;
         }
-        unset($row);
-        $rows = collect($rowsArr);
 
-        $avgTotal = $rows->avg('obtained');
+        $month = (int) $month;
 
-        return view('admin.reports.rankings', compact('classes', 'examTypes', 'class', 'examType', 'rows', 'maxTotal', 'avgTotal'));
+        // Helper: build a ranked rows collection for a specific month (or all if 0)
+        $buildRows = function (int $forMonth) use ($class, $examType, $students) {
+            $examIds = Exam::where('class_id', $class->id)
+                ->when($examType !== '', fn($q) => $q->where('type', $examType))
+                ->when($forMonth > 0, fn($q) => $q->whereMonth('exam_date', $forMonth))
+                ->pluck('id');
+
+            $maxTotal   = Exam::whereIn('id', $examIds)->sum('total_marks');
+            $allResults = ExamResult::whereIn('exam_id', $examIds)->get()->groupBy('student_id');
+
+            $rows = $students->map(function ($student) use ($allResults, $maxTotal) {
+                $obtained = $allResults->get($student->id)?->sum('marks_obtained') ?? 0;
+                $pct      = $maxTotal > 0 ? ($obtained / $maxTotal) * 100 : 0;
+                return ['student' => $student, 'obtained' => $obtained,
+                        'pct' => round($pct, 1), 'grade' => self::gradeFromPct($pct)];
+            })->sortByDesc('pct')->values();
+
+            $rowsArr = $rows->toArray();
+            $rank    = 1;
+            foreach ($rowsArr as $i => &$row) {
+                $row['rank'] = ($i > 0 && $row['pct'] === $rowsArr[$i - 1]['pct'])
+                    ? $rowsArr[$i - 1]['rank'] : $rank;
+                $rank++;
+            }
+            unset($row);
+
+            return ['rows' => collect($rowsArr), 'maxTotal' => $maxTotal,
+                    'avgTotal' => collect($rowsArr)->avg('obtained') ?? 0];
+        };
+
+        // All months — build one section per month
+        if ($month === 0 && $availableMonths->isNotEmpty()) {
+            $monthGroups = $availableMonths->map(function ($m) use ($buildRows) {
+                $data = $buildRows($m);
+                return array_merge(['month' => $m], $data);
+            })->filter(fn($g) => $g['rows']->isNotEmpty())->values();
+
+            return view('admin.reports.rankings', compact(
+                'classes', 'examTypes', 'class', 'examType', 'month', 'availableMonths', 'monthGroups'
+            ));
+        }
+
+        // Single month (or no months available)
+        $data     = $buildRows($month);
+        $rows     = $data['rows'];
+        $maxTotal = $data['maxTotal'];
+        $avgTotal = $data['avgTotal'];
+
+        return view('admin.reports.rankings', compact(
+            'classes', 'examTypes', 'class', 'examType', 'month', 'availableMonths',
+            'rows', 'maxTotal', 'avgTotal'
+        ));
     }
 
     private function gradeLabel(float $pct): string
     {
-        return match (true) {
-            $pct >= 95 => 'A+',
-            $pct >= 90 => 'A',
-            $pct >= 85 => 'B+',
-            $pct >= 80 => 'B',
-            $pct >= 70 => 'C',
-            $pct >= 60 => 'D',
-            $pct >= 50 => 'E',
-            default    => 'F',
-        };
+        return self::gradeFromPct($pct);
     }
 }

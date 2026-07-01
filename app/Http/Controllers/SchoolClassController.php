@@ -40,8 +40,9 @@ class SchoolClassController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'section' => 'nullable|string|max:255',
+            'name'        => 'required|string|max:255',
+            'section'     => 'nullable|string|max:255',
+            'room'        => 'nullable|string|max:255',
             'description' => 'nullable|string',
         ]);
 
@@ -79,8 +80,9 @@ class SchoolClassController extends Controller
     public function update(Request $request, SchoolClass $schoolClass)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'section' => 'nullable|string|max:255',
+            'name'        => 'required|string|max:255',
+            'section'     => 'nullable|string|max:255',
+            'room'        => 'nullable|string|max:255',
             'description' => 'nullable|string',
         ]);
 

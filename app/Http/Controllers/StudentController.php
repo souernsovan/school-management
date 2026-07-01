@@ -205,6 +205,20 @@ class StudentController extends Controller
         );
     }
 
+    public function transfer(Request $request, Student $student)
+    {
+        $request->validate([
+            'class_id' => 'required|exists:school_classes,id',
+        ]);
+
+        $from = $student->schoolClass?->name ?? 'None';
+        $student->update(['class_id' => $request->class_id]);
+        $to = SchoolClass::find($request->class_id)->name;
+
+        return redirect()->route('students.show', $student)
+            ->with('success', "Transferred from {$from} to {$to}.");
+    }
+
     public function importCsv(Request $request)
     {
         $request->validate(['csv_file' => 'required|file|mimes:csv,txt|max:5120']);

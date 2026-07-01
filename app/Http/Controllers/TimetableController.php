@@ -26,17 +26,47 @@ class TimetableController extends Controller
 
         $selectedClass = $classId ? SchoolClass::find($classId) : null;
 
+        // Week navigation — default to current week (Monday)
+        $weekStart = $request->filled('week_start')
+            ? Carbon::parse($request->week_start)->startOfWeek(Carbon::MONDAY)
+            : Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $weekEnd = $weekStart->copy()->endOfWeek(Carbon::SUNDAY);
+
         $entries = $classId
-            ? Timetable::with(['subject', 'teacher', 'exam.subject'])
+            ? Timetable::with(['subject', 'teacher', 'exam.subject', 'schoolClass'])
                 ->where('class_id', $classId)
+                ->where(function ($q) use ($weekStart, $weekEnd) {
+                    // Show entries that have no specific date (recurring) OR fall in this week
+                    $q->whereNull('entry_date')
+                      ->orWhereBetween('entry_date', [
+                          $weekStart->toDateString(),
+                          $weekEnd->toDateString(),
+                      ]);
+                })
                 ->orderBy('start_time')
                 ->get()
             : collect();
 
-        return view('admin.timetables.index', compact('classes', 'days', 'entries', 'selectedClass', 'classId'));
+        $todayWeek     = Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $isCurrentWeek = $weekStart->toDateString() === $todayWeek->toDateString();
+
+        $navParams = ['class_id' => $classId];
+        $prevWeek  = array_merge($navParams, ['week_start' => $weekStart->copy()->subWeek()->toDateString()]);
+        $nextWeek  = array_merge($navParams, ['week_start' => $weekStart->copy()->addWeek()->toDateString()]);
+        $prevMonth = array_merge($navParams, ['week_start' => $weekStart->copy()->subWeeks(4)->toDateString()]);
+        $nextMonth = array_merge($navParams, ['week_start' => $weekStart->copy()->addWeeks(4)->toDateString()]);
+        $prevYear  = array_merge($navParams, ['week_start' => $weekStart->copy()->subWeeks(52)->toDateString()]);
+        $nextYear  = array_merge($navParams, ['week_start' => $weekStart->copy()->addWeeks(52)->toDateString()]);
+        $thisWeek  = array_merge($navParams, ['week_start' => $todayWeek->toDateString()]);
+
+        return view('admin.timetables.index', compact(
+            'classes', 'days', 'entries', 'selectedClass', 'classId',
+            'weekStart', 'weekEnd', 'isCurrentWeek',
+            'prevWeek', 'nextWeek', 'prevMonth', 'nextMonth', 'prevYear', 'nextYear', 'thisWeek'
+        ));
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $classes  = SchoolClass::orderBy('name')->get();
         $subjects = Subject::orderBy('name')->get();
@@ -44,7 +74,23 @@ class TimetableController extends Controller
         $exams    = Exam::with('subject')->orderBy('exam_date')->get();
         $days     = self::DAYS;
 
-        return view('admin.timetables.create', compact('classes', 'subjects', 'teachers', 'exams', 'days'));
+        // Pre-fill the week if coming from the timetable index
+        $weekStart = $request->filled('week_start')
+            ? Carbon::parse($request->week_start)->startOfWeek(Carbon::MONDAY)
+            : Carbon::now()->startOfWeek(Carbon::MONDAY);
+
+        // Build list of selectable weeks: past 4 weeks + next 8 weeks
+        $weeks = [];
+        for ($i = -4; $i <= 8; $i++) {
+            $ws = Carbon::now()->startOfWeek(Carbon::MONDAY)->addWeeks($i);
+            $weeks[] = [
+                'value' => $ws->toDateString(),
+                'label' => $ws->format('M j') . ' – ' . $ws->copy()->addDays(6)->format('M j, Y')
+                    . ($i === 0 ? ' (this week)' : ($i === 1 ? ' (next week)' : ($i === -1 ? ' (last week)' : ''))),
+            ];
+        }
+
+        return view('admin.timetables.create', compact('classes', 'subjects', 'teachers', 'exams', 'days', 'weekStart', 'weeks'));
     }
 
     public function store(Request $request)
@@ -61,11 +107,16 @@ class TimetableController extends Controller
             'day'         => 'required|in:' . implode(',', self::DAYS),
             'start_time'  => 'required',
             'end_time'    => 'required|after:start_time',
-            'room'        => 'nullable|string|max:50',
         ]);
 
-        $data = $request->only('class_id', 'day', 'start_time', 'end_time', 'room');
+        $data = $request->only('class_id', 'day', 'start_time', 'end_time');
         $data['entry_type'] = $request->entry_type;
+
+        // entry_date: null = recurring every week, date = specific week only
+        $data['entry_date'] = $request->recurring === '1'
+            ? null
+            : ($request->filled('entry_date') ? Carbon::parse($request->entry_date)->startOfWeek(Carbon::MONDAY)->toDateString() : null);
+
         if ($request->entry_type === 'break') {
             $data['title']      = $request->title;
             $data['subject_id'] = null;
@@ -77,10 +128,14 @@ class TimetableController extends Controller
             $data['title']      = null;
             $data['teacher_id'] = null;
 
-            // Calculate exam_date from the selected day (this week if not yet passed, next week otherwise)
-            $examDate = Carbon::parse('this ' . $request->day);
-            if ($examDate->isPast()) {
-                $examDate = Carbon::parse('next ' . $request->day);
+            // Use the selected entry_date week for the exam, or fall back to nearest matching day
+            if ($data['entry_date']) {
+                $examDate = Carbon::parse($data['entry_date'])->next($request->day);
+            } else {
+                $examDate = Carbon::parse('this ' . $request->day);
+                if ($examDate->isPast()) {
+                    $examDate = Carbon::parse('next ' . $request->day);
+                }
             }
 
             // Auto-create exam record
@@ -112,7 +167,17 @@ class TimetableController extends Controller
         $exams    = Exam::with('subject')->orderBy('exam_date')->get();
         $days     = self::DAYS;
 
-        return view('admin.timetables.edit', compact('timetable', 'classes', 'subjects', 'teachers', 'exams', 'days'));
+        $weeks = [];
+        for ($i = -4; $i <= 8; $i++) {
+            $ws = Carbon::now()->startOfWeek(Carbon::MONDAY)->addWeeks($i);
+            $weeks[] = [
+                'value' => $ws->toDateString(),
+                'label' => $ws->format('M j') . ' – ' . $ws->copy()->addDays(6)->format('M j, Y')
+                    . ($i === 0 ? ' (this week)' : ($i === 1 ? ' (next week)' : ($i === -1 ? ' (last week)' : ''))),
+            ];
+        }
+
+        return view('admin.timetables.edit', compact('timetable', 'classes', 'subjects', 'teachers', 'exams', 'days', 'weeks'));
     }
 
     public function update(Request $request, Timetable $timetable)
@@ -129,11 +194,15 @@ class TimetableController extends Controller
             'day'         => 'required|in:' . implode(',', self::DAYS),
             'start_time'  => 'required',
             'end_time'    => 'required|after:start_time',
-            'room'        => 'nullable|string|max:50',
         ]);
 
-        $data = $request->only('class_id', 'day', 'start_time', 'end_time', 'room');
+        $data = $request->only('class_id', 'day', 'start_time', 'end_time');
         $data['entry_type'] = $request->entry_type;
+
+        $data['entry_date'] = $request->recurring === '1'
+            ? null
+            : ($request->filled('entry_date') ? Carbon::parse($request->entry_date)->startOfWeek(Carbon::MONDAY)->toDateString() : null);
+
         if ($request->entry_type === 'break') {
             $data['title']      = $request->title;
             $data['subject_id'] = null;
@@ -145,10 +214,13 @@ class TimetableController extends Controller
             $data['title']      = null;
             $data['teacher_id'] = null;
 
-            // Calculate exam_date from the selected day (this week if not yet passed, next week otherwise)
-            $examDate = Carbon::parse('this ' . $request->day);
-            if ($examDate->isPast()) {
-                $examDate = Carbon::parse('next ' . $request->day);
+            if ($data['entry_date']) {
+                $examDate = Carbon::parse($data['entry_date'])->next($request->day);
+            } else {
+                $examDate = Carbon::parse('this ' . $request->day);
+                if ($examDate->isPast()) {
+                    $examDate = Carbon::parse('next ' . $request->day);
+                }
             }
 
             // Update or create the linked exam record

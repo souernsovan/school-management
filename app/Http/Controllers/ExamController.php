@@ -17,20 +17,42 @@ class ExamController extends Controller
         $classes  = SchoolClass::orderBy('name')->get();
         $subjects = Subject::orderBy('name')->get();
 
-        $today = now()->toDateString();
+        $today    = now()->toDateString();
+        $classId  = $request->input('class_id', '');
+        $examType = $request->input('type', '');
+        $month    = $request->input('month', '');
+        $status   = $request->input('status', '');
+
+        // When a class is selected, compute available months and auto-redirect to current month
+        $availableMonths = collect();
+        if ($classId) {
+            $availableMonths = Exam::where('class_id', $classId)
+                ->when($examType !== '', fn($q) => $q->where('type', $examType))
+                ->whereNotNull('exam_date')
+                ->selectRaw('MONTH(exam_date) as m')
+                ->distinct()
+                ->orderByDesc('m')
+                ->pluck('m')
+                ->map(fn($m) => (int) $m);
+
+        }
 
         $exams = Exam::with(['schoolClass', 'subject'])
             ->withCount('results')
-            ->when($request->filled('class_id'),   fn($q) => $q->where('class_id',   $request->class_id))
+            ->when($classId !== '',                fn($q) => $q->where('class_id',   $classId))
             ->when($request->filled('subject_id'), fn($q) => $q->where('subject_id', $request->subject_id))
-            ->when($request->filled('type'),       fn($q) => $q->where('type',        $request->type))
-            ->when($request->status === 'upcoming', fn($q) => $q->where('exam_date', '>=', $today))
-            ->when($request->status === 'past',     fn($q) => $q->where('exam_date', '<',  $today))
+            ->when($examType !== '',               fn($q) => $q->where('type',        $examType))
+            ->when($month !== '',                  fn($q) => $q->whereMonth('exam_date', (int) $month))
+            ->when($status === 'upcoming',         fn($q) => $q->where('exam_date', '>=', $today))
+            ->when($status === 'past',             fn($q) => $q->where('exam_date', '<',  $today))
             ->orderBy('exam_date', 'desc')
-            ->paginate(15)
+            ->paginate(25)
             ->withQueryString();
 
-        return view('admin.exams.index', compact('exams', 'classes', 'subjects'));
+        return view('admin.exams.index', compact(
+            'exams', 'classes', 'subjects',
+            'availableMonths', 'classId', 'examType', 'month', 'status'
+        ));
     }
 
     public function create()

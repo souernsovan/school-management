@@ -16,9 +16,9 @@ class Timetable extends Model
         'teacher_id',
         'exam_id',
         'day',
+        'entry_date',
         'start_time',
         'end_time',
-        'room',
     ];
 
     public function schoolClass()

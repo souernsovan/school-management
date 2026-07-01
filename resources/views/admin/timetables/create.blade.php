@@ -5,6 +5,8 @@
     <script>
     window.__examsByClass = {!! $exams->groupBy('class_id')->toJson() !!};
     window.__subjects     = {!! $subjects->map(fn($s) => ['id' => $s->id, 'name' => $s->name])->values()->toJson() !!};
+    window.__classRooms   = {!! $classes->pluck('room', 'id')->toJson() !!};
+    window.__defaultWeek  = '{{ $weekStart->toDateString() }}';
     </script>
 
     <div class="p-4 sm:p-6">
@@ -81,6 +83,18 @@
                             @endforeach
                         </select>
                         @error('class_id')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                    </div>
+
+                    {{-- Room (from class) --}}
+                    <div x-show="classId && classRoom" x-cloak>
+                        <label class="text-sm font-medium text-slate-700">Room</label>
+                        <div class="mt-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-indigo-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                            </svg>
+                            <span x-text="classRoom" class="font-medium"></span>
+                            <span class="ml-auto text-xs text-slate-400">from class</span>
+                        </div>
                     </div>
 
                     {{-- EXAM fields --}}
@@ -168,6 +182,41 @@
                         </div>
                     </div>
 
+                    {{-- Schedule: recurring vs specific week --}}
+                    <div class="rounded-xl border border-slate-200 overflow-hidden">
+                        <div class="bg-slate-50 px-4 py-2.5 border-b border-slate-200 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 11h14M5 19h14M5 15h14"/></svg>
+                            <span class="text-sm font-semibold text-slate-700">Schedule</span>
+                        </div>
+                        <div class="p-4 space-y-3">
+                            <label class="flex items-start gap-3 cursor-pointer group">
+                                <input type="radio" name="recurring" value="1" x-model="recurring" class="mt-0.5 accent-blue-600">
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-800 group-hover:text-blue-700">Repeat every week</p>
+                                    <p class="text-xs text-slate-400 mt-0.5">This entry will appear on all weeks (standard schedule)</p>
+                                </div>
+                            </label>
+                            <label class="flex items-start gap-3 cursor-pointer group">
+                                <input type="radio" name="recurring" value="0" x-model="recurring" class="mt-0.5 accent-blue-600">
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-800 group-hover:text-blue-700">Specific week only</p>
+                                    <p class="text-xs text-slate-400 mt-0.5">Only appears for the selected week</p>
+                                </div>
+                            </label>
+                            <div x-show="recurring === '0'" x-cloak class="pt-1">
+                                <label class="text-sm font-medium text-slate-700">Select Week <span class="text-red-500">*</span></label>
+                                <select name="entry_date" x-model="entryDate"
+                                        class="mt-1 w-full rounded-xl border-slate-300 focus:border-blue-500 focus:ring-blue-500 text-sm">
+                                    @foreach($weeks as $w)
+                                        <option value="{{ $w['value'] }}" {{ $w['value'] === $weekStart->toDateString() ? 'selected' : '' }}>
+                                            {{ $w['label'] }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
                     {{-- Day --}}
                     <div>
                         <label class="text-sm font-medium text-slate-700">Day <span class="text-red-500">*</span></label>
@@ -197,13 +246,6 @@
                         </div>
                     </div>
 
-                    {{-- Room (not for exam) --}}
-                    <div x-show="entryType !== 'exam'">
-                        <label class="text-sm font-medium text-slate-700">Room</label>
-                        <input type="text" name="room" value="{{ old('room') }}"
-                               placeholder="e.g. Room 101"
-                               class="mt-1 w-full rounded-xl border-slate-300 focus:border-blue-500 focus:ring-blue-500">
-                    </div>
 
                 </div>
 
@@ -225,9 +267,16 @@
         return {
             entryType:      '{{ old('entry_type', 'class') }}',
             classId:        '{{ old('class_id', '') }}',
+            recurring:      '{{ old('recurring', '1') }}',
+            entryDate:      '{{ old('entry_date', '') }}' || (window.__defaultWeek || ''),
             examTypeFilter: '',
             subjectFilter:  '',
             examId:         '{{ old('exam_id', '') }}',
+
+            get classRoom() {
+                if (!this.classId) return '';
+                return (window.__classRooms || {})[this.classId] || '';
+            },
 
             get _classExams() {
                 if (!this.classId) return [];

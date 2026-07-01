@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             SubjectSeeder::class,
             StudentSeeder::class,
             AdminUserSeeder::class,
+            TimetableSeeder::class,
         ]);
     }
 }

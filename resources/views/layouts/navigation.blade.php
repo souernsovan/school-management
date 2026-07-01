@@ -50,8 +50,8 @@
 
             // Pre-compute which groups should start open
             $academicActive    = request()->routeIs('students.*', 'school-classes.*', 'subjects.*', 'teachers.*', 'exam-types.*');
-            $managementActive  = request()->routeIs('timetables.*', 'attendances.*', 'exams.*', 'reports.*', 'student.results', 'student-results.*', 'reports.rankings');
-            $adminActive       = request()->routeIs('users.*', 'link-accounts.*');
+            $managementActive  = request()->routeIs('timetables.*', 'attendances.*', 'exams.*', 'reports.*', 'student-results.*', 'score-entry.*', 'quick-score.*');
+            $adminActive       = request()->routeIs('users.*', 'link-accounts.*', 'announcements.*');
         @endphp
 
         <!-- MENU -->
@@ -136,84 +136,93 @@
             </div>
             @endcanany
 
-            <!-- ===== MANAGEMENT GROUP ===== -->
-            @canany(['manage timetables','view timetable','manage attendance','manage exams','view results'])
-            <div x-data="{ open: @json($managementActive) }" class="pt-1">
-
+            <!-- ===== MANAGEMENT GROUP (Timetable + Attendance) ===== -->
+            @canany(['manage timetables','view timetable','manage attendance'])
+            @php $mgmtActive = request()->routeIs('timetables.*','attendances.*'); @endphp
+            <div x-data="{ open: @json($mgmtActive) }" class="pt-1">
                 <p class="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Management</p>
-
-                <button type="button" @click="open = !open" :aria-expanded="open"
-                    class="{{ $group($managementActive) }}">
+                <button type="button" @click="open = !open" class="{{ $group($mgmtActive) }}">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
                     </svg>
                     <span class="flex-1 text-left">Management</span>
-                    <svg class="w-4 h-4 text-slate-400 transition-transform duration-200" :class="open && 'rotate-180'"
-                         xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg class="w-4 h-4 text-slate-400 transition-transform duration-200" :class="open && 'rotate-180'" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </button>
-
-                <div x-show="open" x-collapse
-                     class="mt-1 ml-4 pl-3 border-l border-slate-200 space-y-0.5">
-
-                    @canany(['manage timetables', 'view timetable'])
+                <div x-show="open" x-collapse class="mt-1 ml-4 pl-3 border-l border-slate-200 space-y-0.5">
+                    @canany(['manage timetables','view timetable'])
                     <a href="{{ route('timetables.index') }}" class="{{ $sub(request()->routeIs('timetables.*')) }}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 11h14M5 19h14M5 15h14"/>
-                        </svg>
-                        Time Table
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 11h14M5 19h14M5 15h14"/></svg>
+                        Timetable
                     </a>
                     @endcanany
-
                     @can('manage attendance')
                     <a href="{{ route('attendances.index') }}" class="{{ $sub(request()->routeIs('attendances.*')) }}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
-                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
                         Attendance
                     </a>
                     @endcan
+                </div>
+            </div>
+            @endcanany
 
-                    @canany(['manage exams', 'view results'])
+            <!-- ===== EXAMS & GRADES GROUP ===== -->
+            @canany(['manage exams','view results'])
+            @php $examGroupActive = request()->routeIs('exams.*','score-entry.*','quick-score.*','student-results.*','reports.*','monthly-exam.*'); @endphp
+            <div x-data="{ open: @json($examGroupActive) }" class="pt-1">
+                <p class="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Exams & Grades</p>
+                <button type="button" @click="open = !open" class="{{ $group($examGroupActive) }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <span class="flex-1 text-left">Exams & Grades</span>
+                    <svg class="w-4 h-4 text-slate-400 transition-transform duration-200" :class="open && 'rotate-180'" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+                <div x-show="open" x-collapse class="mt-1 ml-4 pl-3 border-l border-slate-200 space-y-0.5">
+
+                    @can('manage exams')
+                    <a href="{{ route('exams.index') }}" class="{{ $sub(request()->routeIs('exams.*')) }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        Exams
+                    </a>
+                    <a href="{{ route('score-entry.index') }}" class="{{ $sub(request()->routeIs('score-entry.*')) }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M16 3l5 5-9 9H7v-5l9-9z"/></svg>
+                        Score Entry
+                    </a>
+                    <a href="{{ route('quick-score.index') }}" class="{{ $sub(request()->routeIs('quick-score.*')) }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        Quick Score
+                    </a>
+                    @endcan
+
+                    @canany(['manage exams','view results'])
+                    <a href="{{ route('monthly-exam.index') }}" class="{{ $sub(request()->routeIs('monthly-exam.*')) }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        Monthly Exam
+                    </a>
+                    @endcanany
+
+                                        @canany(['manage exams','view results'])
                     @unless(auth()->user()->hasRole('Student'))
                     <a href="{{ route('student-results.index') }}" class="{{ $sub(request()->routeIs('student-results.*')) }}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
-                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
                         Student Results
                     </a>
                     @endunless
                     @endcanany
-
                     @can('manage exams')
-                    <a href="{{ route('exams.index') }}" class="{{ $sub(request()->routeIs('exams.*')) }}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                        </svg>
-                        Exams
-                    </a>
                     <a href="{{ route('reports.index') }}" class="{{ $sub(request()->routeIs('reports.index') || request()->routeIs('reports.export.*')) }}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                         Reports
                     </a>
                     <a href="{{ route('reports.rankings') }}" class="{{ $sub(request()->routeIs('reports.rankings')) }}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
-                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
                         Rankings
                     </a>
                     @endcan
-                    @role('Student')
-                    <a href="{{ route('student.results') }}" class="{{ $sub(request()->routeIs('student.results')) }}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
-                        </svg>
-                        My Results
-                    </a>
-                    @endrole
 
                 </div>
             </div>
@@ -240,6 +249,13 @@
 
                 <div x-show="open" x-collapse
                      class="mt-1 ml-4 pl-3 border-l border-slate-200 space-y-0.5">
+
+                    <a href="{{ route('announcements.index') }}" class="{{ $sub(request()->routeIs('announcements.*')) }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
+                        </svg>
+                        Announcements
+                    </a>
 
                     <a href="{{ route('users.index') }}" class="{{ $sub(request()->routeIs('users.*')) }}">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
@@ -309,6 +325,25 @@
 
             <!-- NOTIFICATIONS + PROFILE -->
             <div class="flex items-center gap-2">
+
+                @unless(Auth::user()->hasRole('Admin'))
+                @php
+                    $annCount = \App\Models\Announcement::active()->forUser(Auth::user())->count();
+                @endphp
+                <a href="{{ route('announcements.index') }}"
+                   class="relative flex items-center justify-center w-10 h-10 rounded-xl transition
+                          {{ request()->routeIs('announcements.*') ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800' }}"
+                   title="Announcements">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
+                    </svg>
+                    @if($annCount > 0)
+                    <span class="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                        {{ $annCount > 9 ? '9+' : $annCount }}
+                    </span>
+                    @endif
+                </a>
+                @endunless
 
                 <div class="relative" x-data="{ open: false }" @keydown.escape.window="open = false" @click.outside="open = false">
                     @php

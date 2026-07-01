@@ -16,6 +16,10 @@ use App\Http\Controllers\StudentResultController;
 use App\Http\Controllers\LinkAccountController;
 use App\Http\Controllers\ExamTypeController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\AnnouncementController;
+use App\Http\Controllers\ScoreEntryController;
+use App\Http\Controllers\QuickScoreController;
+use App\Http\Controllers\MonthlyExamController;
 
 /*
 |--------------------------------------------------------------------------
@@ -91,7 +95,15 @@ Route::get('/dashboard', function () {
 
     $recentStudents = \App\Models\Student::with('schoolClass')->latest()->take(5)->get();
 
-    return view('dashboard', compact('stats','week','todayAtt','classDist','upcomingExams','examStats','recentExams','recentStudents'));
+    $announcements = \App\Models\Announcement::with('author')
+        ->active()
+        ->forUser(auth()->user())
+        ->orderByDesc('pinned')
+        ->orderByDesc('created_at')
+        ->take(5)
+        ->get();
+
+    return view('dashboard', compact('stats','week','todayAtt','classDist','upcomingExams','examStats','recentExams','recentStudents','announcements'));
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 /*
@@ -108,7 +120,8 @@ Route::middleware(['auth'])->group(function () {
 });
 
 Route::middleware(['auth', 'student.linked', 'permission:view timetable'])->group(function () {
-    Route::get('/my-timetable', [StudentTimetableController::class, 'index'])->name('student.timetable');
+    Route::get('/my-timetable',      [StudentTimetableController::class, 'index'])->name('student.timetable');
+    Route::get('/my-announcements',  [StudentTimetableController::class, 'announcements'])->name('student.announcements');
 });
 
 Route::middleware(['auth', 'student.linked', 'permission:view results'])->group(function () {
@@ -181,7 +194,10 @@ Route::middleware('auth')->prefix('admin')->group(function () {
 
     // Attendance
     Route::middleware(['permission:manage attendance'])->group(function () {
-        Route::get('attendances/export', [AttendanceController::class, 'exportCsv'])->name('attendances.export');
+        Route::get('attendances/export',                          [AttendanceController::class, 'exportCsv'])->name('attendances.export');
+        Route::get('attendances/students',                        [AttendanceController::class, 'students'])->name('attendances.students');
+        Route::get('attendances/{classId}/{date}/edit',           [AttendanceController::class, 'sessionEdit'])->name('attendances.session.edit');
+        Route::delete('attendances/{classId}/{date}/session',     [AttendanceController::class, 'sessionDestroy'])->name('attendances.session.destroy');
         Route::resource('attendances', AttendanceController::class);
     });
 
@@ -279,6 +295,27 @@ Route::middleware('auth')->prefix('admin')->group(function () {
         Route::get('reports/export/pdf', [ReportController::class, 'exportPdf'])->name('reports.export.pdf');
         Route::get('reports/rankings',   [ReportController::class, 'rankings'])->name('reports.rankings');
     });
+
+    // Monthly Exam Summary
+    Route::middleware(['permission:manage exams|view results'])->group(function () {
+        Route::get('monthly-exam', [MonthlyExamController::class, 'index'])->name('monthly-exam.index');
+    });
+
+    // Score Entry (Gradebook)
+    Route::middleware(['permission:manage exams'])->group(function () {
+        Route::get('score-entry',  [ScoreEntryController::class, 'index'])->name('score-entry.index');
+        Route::post('score-entry', [ScoreEntryController::class, 'store'])->name('score-entry.store');
+        Route::get('quick-score',  [QuickScoreController::class, 'index'])->name('quick-score.index');
+        Route::post('quick-score', [QuickScoreController::class, 'store'])->name('quick-score.store');
+    });
+
+    // Announcements
+    Route::get('announcements',                       [AnnouncementController::class, 'index'])->name('announcements.index');
+    Route::post('announcements',                      [AnnouncementController::class, 'store'])->name('announcements.store');
+    Route::delete('announcements/{announcement}',     [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
+
+    // Student class transfer
+    Route::post('students/{student}/transfer', [StudentController::class, 'transfer'])->name('students.transfer');
 
 });
 

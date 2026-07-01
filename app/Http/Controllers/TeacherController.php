@@ -55,6 +55,26 @@ class TeacherController extends Controller
         return redirect()->route('teachers.index')->with('success', 'Teacher created successfully.');
     }
 
+    public function show(Teacher $teacher)
+    {
+        $subjects  = $teacher->subjects();
+        $classes   = $teacher->classes();
+        $students  = $teacher->students();
+
+        $examStats = [
+            'total'   => \App\Models\Exam::whereHas('timetables', fn($q) => $q->where('teacher_id', $teacher->id))->count(),
+            'average' => \App\Models\ExamResult::whereHas('exam.timetables', fn($q) => $q->where('teacher_id', $teacher->id))->avg('marks_obtained'),
+        ];
+
+        $recentAttendances = \App\Models\Attendance::with(['student', 'schoolClass', 'subject'])
+            ->where('teacher_id', $teacher->id)
+            ->latest('attendance_date')
+            ->take(8)
+            ->get();
+
+        return view('admin.teachers.show', compact('teacher', 'subjects', 'classes', 'students', 'examStats', 'recentAttendances'));
+    }
+
     public function edit(Teacher $teacher)
     {
         return view('admin.teachers.edit', compact('teacher'));

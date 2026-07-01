@@ -3,15 +3,21 @@
 
     <div class="p-4 sm:p-6 space-y-5">
 
-        {{-- Back link --}}
-        <div>
-            <a href="{{ route('student-results.index') }}"
+        {{-- Back link + active filter badges --}}
+        <div class="flex flex-wrap items-center gap-2">
+            <a href="{{ route('student-results.index', array_filter(request()->only(['class_id','type','month','search']), fn($v) => $v !== '' && $v !== null)) }}"
                class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
                 </svg>
                 Back to all students
             </a>
+            @if($examType)
+            <span class="px-2.5 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">{{ $examType }}</span>
+            @endif
+            @if($month > 0)
+            <span class="px-2.5 py-0.5 bg-violet-100 text-violet-700 rounded-full text-xs font-semibold">{{ date('F', mktime(0,0,0,$month,1)) }}</span>
+            @endif
         </div>
 
         {{-- Student profile banner --}}

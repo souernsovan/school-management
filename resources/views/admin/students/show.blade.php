@@ -5,7 +5,7 @@
     <div class="p-4 sm:p-6 space-y-5">
 
         {{-- Top bar --}}
-        <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-3" x-data="{ transfer: false }">
             <a href="{{ route('students.index') }}"
                class="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 transition">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -14,13 +14,58 @@
                 Back to Students
             </a>
             @can('manage students')
-            <a href="{{ route('students.edit', $student) }}"
-               class="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition text-sm font-medium shadow-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                </svg>
-                Edit Student
-            </a>
+            <div class="flex items-center gap-2">
+                <button @click="transfer = true"
+                        class="inline-flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-xl hover:bg-amber-600 transition text-sm font-medium shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                    Transfer Class
+                </button>
+                <a href="{{ route('students.edit', $student) }}"
+                   class="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition text-sm font-medium shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                    Edit Student
+                </a>
+            </div>
+            @endcan
+
+            {{-- Transfer Class Modal --}}
+            @can('manage students')
+            <div x-show="transfer" x-cloak
+                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+                 @keydown.escape.window="transfer = false">
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" @click.outside="transfer = false">
+                    <h2 class="text-base font-bold text-slate-800 mb-1">Transfer Student</h2>
+                    <p class="text-sm text-slate-500 mb-4">
+                        Move <strong>{{ $student->first_name }} {{ $student->last_name }}</strong> to a different class.
+                        Current: <span class="font-semibold">{{ $student->schoolClass->name ?? 'Unassigned' }}</span>
+                    </p>
+
+                    <form method="POST" action="{{ route('students.transfer', $student) }}">
+                        @csrf
+                        <div class="mb-4">
+                            <label class="block text-xs font-semibold text-slate-600 mb-1.5">Select New Class</label>
+                            <select name="class_id" required
+                                    class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-400">
+                                <option value="">— choose class —</option>
+                                @foreach(\App\Models\SchoolClass::orderBy('name')->get() as $cls)
+                                <option value="{{ $cls->id }}"
+                                    {{ $student->class_id == $cls->id ? 'selected' : '' }}>
+                                    {{ $cls->name }}{{ $cls->section ? ' — '.$cls->section : '' }}
+                                </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <button type="button" @click="transfer = false"
+                                    class="px-4 py-2 text-sm rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition">Cancel</button>
+                            <button type="submit"
+                                    class="px-4 py-2 text-sm rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-600 transition shadow-sm">Transfer</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
             @endcan
         </div>
 
@@ -38,6 +83,33 @@
                     {{ $student->schoolClass->name }} — {{ $student->schoolClass->section }}
                 </span>
             @endif
+        </div>
+
+        {{-- Quick stat pills --}}
+        @php
+            $attRate  = $student->attendanceRate();
+            $perfSum  = $student->performanceSummary();
+            $attColor = $attRate >= 80 ? 'emerald' : ($attRate >= 60 ? 'amber' : 'red');
+        @endphp
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 text-center">
+                <p class="text-2xl font-bold text-slate-800">{{ $stats['total'] }}</p>
+                <p class="text-xs text-slate-400 mt-0.5">Attendance Records</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-{{ $attColor }}-200 shadow-sm p-4 text-center">
+                <p class="text-2xl font-bold text-{{ $attColor }}-600">{{ $attRate }}%</p>
+                <p class="text-xs text-slate-400 mt-0.5">Attendance Rate</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 text-center">
+                <p class="text-2xl font-bold text-slate-800">{{ $perfSum['count'] }}</p>
+                <p class="text-xs text-slate-400 mt-0.5">Exams Taken</p>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 text-center">
+                <p class="text-2xl font-bold {{ $perfSum['pct'] !== null ? 'text-blue-600' : 'text-slate-400' }}">
+                    {{ $perfSum['pct'] !== null ? $perfSum['pct'].'%' : '—' }}
+                </p>
+                <p class="text-xs text-slate-400 mt-0.5">Overall Score · <span class="font-semibold">{{ $perfSum['grade'] }}</span></p>
+            </div>
         </div>
 
         {{-- Three info cards --}}

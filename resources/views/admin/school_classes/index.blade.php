@@ -86,6 +86,7 @@
                     <tr class="bg-slate-50 border-b border-slate-100 text-slate-500 uppercase text-xs tracking-wide">
                         <th class="px-5 py-3.5 font-semibold">Class Name</th>
                         <th class="px-5 py-3.5 font-semibold">Section</th>
+                        <th class="px-5 py-3.5 font-semibold">Room</th>
                         <th class="px-5 py-3.5 font-semibold">Students</th>
                         <th class="px-5 py-3.5 font-semibold text-right">Actions</th>
                     </tr>
@@ -111,6 +112,20 @@
                                 @if($class->section)
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-600 font-semibold text-xs">
                                         {{ $class->section }}
+                                    </span>
+                                @else
+                                    <span class="text-slate-400">—</span>
+                                @endif
+                            </td>
+
+                            <!-- Room -->
+                            <td class="px-5 py-4">
+                                @if($class->room)
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 font-semibold text-xs">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                                        </svg>
+                                        {{ $class->room }}
                                     </span>
                                 @else
                                     <span class="text-slate-400">—</span>
@@ -182,7 +197,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="4" class="px-5 py-16 text-center">
+                            <td colspan="5" class="px-5 py-16 text-center">
                                 <div class="flex flex-col items-center gap-2 text-slate-400">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>

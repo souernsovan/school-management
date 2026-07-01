@@ -281,6 +281,36 @@
         </div>
         @endcanany
 
+        {{-- ===== ANNOUNCEMENTS ===== --}}
+        @if($announcements->isNotEmpty())
+        <div class="space-y-3">
+            <div class="flex items-center justify-between">
+                <h3 class="font-bold text-slate-800">Announcements</h3>
+                @can('manage students')
+                <a href="{{ route('announcements.index') }}" class="text-xs text-blue-600 hover:underline font-medium">Manage →</a>
+                @endcan
+            </div>
+            @foreach($announcements as $ann)
+            @php $c = $ann->type_color; @endphp
+            <div class="bg-white rounded-2xl border border-{{ $c }}-200 shadow-sm px-4 py-3.5 flex items-start gap-3">
+                <div class="w-8 h-8 rounded-lg bg-{{ $c }}-100 flex items-center justify-center shrink-0 mt-0.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-{{ $c }}-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="{{ $ann->type_icon }}"/>
+                    </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        @if($ann->pinned)<span class="text-[10px] font-bold uppercase tracking-widest text-amber-600">📌 Pinned</span>@endif
+                        <p class="text-sm font-semibold text-slate-800">{{ $ann->title }}</p>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-0.5 line-clamp-2">{{ $ann->body }}</p>
+                    <p class="text-[10px] text-slate-400 mt-1">{{ $ann->author->name ?? '' }} · {{ $ann->created_at->diffForHumans() }}</p>
+                </div>
+            </div>
+            @endforeach
+        </div>
+        @endif
+
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>

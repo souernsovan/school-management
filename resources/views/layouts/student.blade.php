@@ -67,7 +67,22 @@
                 $user = Auth::user();
                 $unreadCount = $user->unreadNotifications()->count();
                 $recentNotifications = $user->notifications()->latest()->take(5)->get();
+                $announcementCount = \App\Models\Announcement::active()->forUser($user)->count();
             @endphp
+
+            {{-- Announcements icon --}}
+            <a href="{{ route('student.announcements') }}"
+               class="relative flex items-center justify-center w-10 h-10 rounded-xl transition
+                      {{ request()->routeIs('student.announcements') ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800' }}">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/>
+                </svg>
+                @if($announcementCount > 0)
+                <span class="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                    {{ $announcementCount > 9 ? '9+' : $announcementCount }}
+                </span>
+                @endif
+            </a>
 
             <div class="relative" x-data="{ open: false }" @keydown.escape.window="open = false" @click.outside="open = false">
                 <button @click="open = !open"

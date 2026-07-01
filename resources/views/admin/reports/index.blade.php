@@ -21,14 +21,14 @@
                 </div>
                 @if(isset($students) && $students->isNotEmpty() && isset($exams) && $exams->isNotEmpty())
                 <div class="flex flex-wrap items-center gap-2">
-                    <a href="{{ route('reports.export.csv', request()->only('class_id','type')) }}"
+                    <a href="{{ route('reports.export.csv', request()->only('class_id','type','month')) }}"
                        class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
                         </svg>
                         Excel / CSV
                     </a>
-                    <a href="{{ route('reports.export.pdf', request()->only('class_id','type')) }}"
+                    <a href="{{ route('reports.export.pdf', request()->only('class_id','type','month')) }}"
                        class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
@@ -49,9 +49,9 @@
             <!-- Filter row -->
             <form method="GET" class="px-5 py-4 bg-slate-50/50">
                 <div class="flex flex-wrap items-end gap-3">
-                    <div class="flex-1 min-w-[200px]">
+                    <div class="flex-1 min-w-[180px]">
                         <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Class</label>
-                        <select name="class_id"
+                        <select name="class_id" onchange="this.form.submit()"
                                 class="w-full rounded-xl border-slate-200 bg-white text-sm focus:ring-blue-500 focus:border-blue-500">
                             <option value="">— Select a class —</option>
                             @foreach($classes as $cls)
@@ -61,15 +61,28 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="flex-1 min-w-[200px]">
+                    <div class="flex-1 min-w-[160px]">
                         <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Exam Type</label>
-                        <select name="type"
+                        <select name="type" onchange="this.form.submit()"
                                 class="w-full rounded-xl border-slate-200 bg-white text-sm focus:ring-blue-500 focus:border-blue-500">
                             @foreach($examTypes as $t)
                                 <option value="{{ $t }}" @selected(isset($examType) && $examType === $t)>{{ $t }}</option>
                             @endforeach
                         </select>
                     </div>
+                    @if(isset($availableMonths) && $availableMonths->isNotEmpty())
+                    <div class="min-w-[130px]">
+                        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Month</label>
+                        <select name="month" onchange="this.form.submit()"
+                                class="w-full rounded-xl border-slate-200 bg-white text-sm focus:ring-blue-500 focus:border-blue-500">
+                            @foreach($availableMonths as $m)
+                            <option value="{{ $m }}" {{ isset($month) && $month === $m ? 'selected' : '' }}>
+                                {{ date('F', mktime(0,0,0,$m,1)) }}
+                            </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    @endif
                     <button type="submit"
                             class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition shadow-sm">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -125,11 +138,12 @@
         @endphp
 
         <!-- Stat cards -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             @php
                 $statCards = [
                     ['label' => 'Class',       'value' => $class->name . ' – ' . $class->section, 'icon' => 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', 'color' => 'bg-blue-50 text-blue-600'],
                     ['label' => 'Exam Type',   'value' => $examType, 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', 'color' => 'bg-purple-50 text-purple-600'],
+                    ['label' => 'Month',       'value' => ($month > 0 ? date('F', mktime(0,0,0,$month,1)) : 'All Months'), 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', 'color' => 'bg-violet-50 text-violet-600'],
                     ['label' => 'Subjects',    'value' => $exams->count(), 'icon' => 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253', 'color' => 'bg-teal-50 text-teal-600'],
                     ['label' => 'Total Marks', 'value' => $grandTotal, 'icon' => 'M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2h-2', 'color' => 'bg-amber-50 text-amber-600'],
                     ['label' => 'Students',    'value' => $students->count(), 'icon' => 'M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z', 'color' => 'bg-indigo-50 text-indigo-600'],

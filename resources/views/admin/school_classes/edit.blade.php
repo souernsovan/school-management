@@ -50,6 +50,18 @@
                         @enderror
                     </div>
 
+                    <!-- Room -->
+                    <div>
+                        <label class="text-sm font-medium text-slate-700">Room</label>
+                        <input name="room" type="text"
+                               value="{{ old('room', $schoolClass->room) }}"
+                               class="mt-1 w-full rounded-xl border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                               placeholder="e.g. Room 101, Room 7A">
+                        @error('room')
+                            <p class="text-red-500 text-sm mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+
                     <!-- Description -->
                     <div>
                         <label class="text-sm font-medium text-slate-700">Description</label>
