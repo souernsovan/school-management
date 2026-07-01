@@ -5,8 +5,11 @@ use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\Request;
 use App\Models\SchoolClass;
+use App\Traits\ExportsToExcel;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 class StudentController extends Controller
 {
+    use ExportsToExcel;
     /**
      * Display all students
      */
@@ -168,5 +171,82 @@ class StudentController extends Controller
 
         return redirect()->route('students.index')
             ->with('success', 'Student deleted successfully');
+    }
+
+    public function exportCsv(Request $request): StreamedResponse
+    {
+        $students = Student::with('schoolClass')
+            ->when($request->filled('class_id'), fn($q) => $q->where('class_id', $request->class_id))
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $s = $request->search;
+                $q->where(fn($q) => $q
+                    ->whereRaw("CONCAT(first_name,' ',last_name) LIKE ?", ["%$s%"])
+                    ->orWhere('email', 'like', "%$s%")
+                );
+            })
+            ->orderBy('first_name')
+            ->get();
+
+        $className = $request->filled('class_id')
+            ? (SchoolClass::find($request->class_id)?->name ?? 'Class')
+            : null;
+
+        $rows = $students->map(fn($s) => [
+            $s->first_name, $s->last_name, $s->email ?? '',
+            $s->dob ?? '', $s->gender ?? '', $s->phone ?? '',
+            $s->address ?? '', $s->schoolClass->name ?? '',
+        ]);
+
+        return $this->xlsResponse(
+            $className ? "Students — {$className}" : 'Students — All Classes',
+            ['First Name', 'Last Name', 'Email', 'Date of Birth', 'Gender', 'Phone', 'Address', 'Class'],
+            $rows,
+            $className ? 'students_' . \Str::slug($className) : 'students_all'
+        );
+    }
+
+    public function importCsv(Request $request)
+    {
+        $request->validate(['csv_file' => 'required|file|mimes:csv,txt|max:5120']);
+
+        $handle   = fopen($request->file('csv_file')->getRealPath(), 'r');
+        fgetcsv($handle); // skip header
+
+        $imported = 0;
+        $skipped  = 0;
+
+        while (($row = fgetcsv($handle)) !== false) {
+            [$firstName, $lastName, $email, $dob, $gender, $phone, $address, $className] = array_pad($row, 8, null);
+
+            $firstName = trim($firstName ?? '');
+            $lastName  = trim($lastName  ?? '');
+            if ($firstName === '' || $lastName === '') { $skipped++; continue; }
+
+            $email = trim($email ?? '') ?: null;
+            if ($email && Student::where('email', $email)->exists()) { $skipped++; continue; }
+
+            $classId = null;
+            if (!empty($className)) {
+                $classId = SchoolClass::where('name', trim($className))->value('id');
+            }
+
+            Student::create([
+                'first_name' => $firstName,
+                'last_name'  => $lastName,
+                'email'      => $email,
+                'dob'        => trim($dob    ?? '') ?: null,
+                'gender'     => trim($gender ?? '') ?: null,
+                'phone'      => trim($phone  ?? '') ?: null,
+                'address'    => trim($address ?? '') ?: null,
+                'class_id'   => $classId,
+            ]);
+            $imported++;
+        }
+        fclose($handle);
+
+        $msg = "$imported student(s) imported.";
+        if ($skipped) $msg .= " $skipped row(s) skipped (missing name or duplicate email).";
+
+        return redirect()->route('students.index')->with('success', $msg);
     }
 }

@@ -144,6 +144,12 @@ Route::middleware('auth')->prefix('admin')->group(function () {
         Route::resource('users', UserController::class);
     });
 
+    // Students export / import  (must be before {student} wildcard)
+    Route::middleware(['permission:manage students'])->group(function () {
+        Route::get('students/export',  [StudentController::class, 'exportCsv'])->name('students.export');
+        Route::post('students/import', [StudentController::class, 'importCsv'])->name('students.import');
+    });
+
     // Students
     Route::middleware(['permission:manage students|create students'])->group(function () {
         Route::get('students/create', [StudentController::class, 'create'])->name('students.create');
@@ -175,6 +181,7 @@ Route::middleware('auth')->prefix('admin')->group(function () {
 
     // Attendance
     Route::middleware(['permission:manage attendance'])->group(function () {
+        Route::get('attendances/export', [AttendanceController::class, 'exportCsv'])->name('attendances.export');
         Route::resource('attendances', AttendanceController::class);
     });
 
@@ -184,6 +191,11 @@ Route::middleware('auth')->prefix('admin')->group(function () {
     });
     Route::middleware(['permission:manage timetables'])->group(function () {
         Route::resource('timetables', TimetableController::class)->except(['index']);
+    });
+
+    // Teachers export
+    Route::middleware(['permission:manage teachers'])->group(function () {
+        Route::get('teachers/export', [TeacherController::class, 'exportCsv'])->name('teachers.export');
     });
 
     // Teachers
@@ -257,6 +269,7 @@ Route::middleware('auth')->prefix('admin')->group(function () {
         Route::patch('exams/{exam}',         [ExamController::class, 'update']);
         Route::delete('exams/{exam}',        [ExamController::class, 'destroy'])->name('exams.destroy');
         Route::post('exams/{exam}/results',  [ExamController::class, 'saveResults'])->name('exams.results.save');
+        Route::get('exams/{exam}/export',    [ExamController::class, 'exportResultsCsv'])->name('exams.results.export');
     });
 
     // Reports

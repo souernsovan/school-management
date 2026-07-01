@@ -6,10 +6,12 @@ use App\Models\Exam;
 use App\Models\ExamResult;
 use App\Models\SchoolClass;
 use App\Models\Subject;
+use App\Traits\ExportsToExcel;
 use Illuminate\Http\Request;
 
 class ExamController extends Controller
 {
+    use ExportsToExcel;
     public function index(Request $request)
     {
         $classes  = SchoolClass::orderBy('name')->get();
@@ -106,6 +108,47 @@ class ExamController extends Controller
         $exam->delete();
         return redirect()->route('exams.index')
             ->with('success', 'Exam deleted successfully.');
+    }
+
+    public function exportResultsCsv(Exam $exam): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $exam->load(['schoolClass', 'subject', 'results.student']);
+
+        $students   = $exam->schoolClass
+            ? $exam->schoolClass->students()->orderBy('first_name')->get()
+            : collect();
+        $resultsMap = $exam->results->keyBy('student_id');
+
+        $rows = $students->map(function ($s) use ($exam, $resultsMap) {
+            $result = $resultsMap->get($s->id);
+            $marks  = $result?->marks_obtained ?? '';
+            $pct    = ($marks !== '' && $exam->total_marks > 0) ? round($marks / $exam->total_marks * 100, 1) : '';
+            $grade  = '';
+            if ($pct !== '') {
+                $grade = match(true) {
+                    $pct >= 90 => 'A+', $pct >= 80 => 'A', $pct >= 70 => 'B',
+                    $pct >= 60 => 'C', $pct >= 50 => 'D', default => 'F',
+                };
+            }
+            return [
+                $s->first_name . ' ' . $s->last_name,
+                $exam->schoolClass->name ?? '',
+                $exam->subject->name ?? '',
+                $exam->type,
+                $exam->exam_date->format('d M Y'),
+                $exam->total_marks,
+                $marks,
+                $pct !== '' ? $pct . '%' : '',
+                $grade,
+            ];
+        });
+
+        return $this->xlsResponse(
+            'Exam Results — ' . ($exam->subject->name ?? 'Exam') . ' (' . $exam->type . ')',
+            ['Student', 'Class', 'Subject', 'Exam Type', 'Date', 'Total Marks', 'Marks Obtained', 'Percentage', 'Grade'],
+            $rows,
+            'exam_results_' . $exam->id
+        );
     }
 
     public function saveResults(Request $request, Exam $exam)

@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Teacher;
+use App\Traits\ExportsToExcel;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TeacherController extends Controller
 {
+    use ExportsToExcel;
     public function index(Request $request)
     {
         $teachers = Teacher::when($request->filled('search'), function ($q) use ($request) {
@@ -85,5 +88,31 @@ class TeacherController extends Controller
     {
         $teacher->delete();
         return redirect()->route('teachers.index')->with('success', 'Teacher deleted successfully.');
+    }
+
+    public function exportCsv(Request $request): StreamedResponse
+    {
+        $teachers = Teacher::when($request->filled('search'), function ($q) use ($request) {
+                $s = $request->search;
+                $q->where(fn($q) => $q
+                    ->whereRaw("CONCAT(first_name,' ',last_name) LIKE ?", ["%$s%"])
+                    ->orWhere('email', 'like', "%$s%")
+                );
+            })
+            ->orderBy('first_name')
+            ->get();
+
+        $rows = $teachers->map(fn($t) => [
+            $t->first_name, $t->last_name, $t->email ?? '', $t->phone ?? '',
+            $t->dob ?? '', $t->gender ?? '', $t->hire_date ?? '',
+            $t->qualification ?? '', $t->specialization ?? '', $t->status ?? '',
+        ]);
+
+        return $this->xlsResponse(
+            'Teachers Report',
+            ['First Name', 'Last Name', 'Email', 'Phone', 'Date of Birth', 'Gender', 'Hire Date', 'Qualification', 'Specialization', 'Status'],
+            $rows,
+            'teachers'
+        );
     }
 }

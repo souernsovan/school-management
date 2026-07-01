@@ -9,7 +9,38 @@
                 <p class="mt-1 text-sm text-slate-500">{{ $attendances->total() }} record{{ $attendances->total() !== 1 ? 's' : '' }} found</p>
             </div>
 
-            @can('manage attendance')
+            <div class="flex flex-wrap items-center gap-2">
+                @can('manage attendance')
+                {{-- Export popover --}}
+                <div x-data="{ open: false, cls: '' }" class="relative">
+                    <button @click="open = !open" @keydown.escape.window="open = false"
+                            class="inline-flex items-center gap-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-2.5 text-sm font-semibold hover:bg-emerald-100 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+                        Export
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+
+                    <div x-show="open" x-cloak @click.outside="open = false"
+                         class="absolute left-0 top-full mt-2 z-30 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 space-y-3">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-widest">Export Attendance</p>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">Select Class</label>
+                            <select x-model="cls" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500">
+                                <option value="">All Classes</option>
+                                @foreach($classes as $class)
+                                <option value="{{ $class->id }}">{{ $class->name }}{{ $class->section ? ' — '.$class->section : '' }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        @php $attFilters = http_build_query(request()->only('search','date','status','date_from','date_to')); @endphp
+                        <a :href="'{{ route('attendances.export') }}' + (cls ? '?class_id=' + cls + ({{ json_encode($attFilters ? '&'.$attFilters : '') }}) : {{ json_encode($attFilters ? '?'.$attFilters : '') }})"
+                           @click="open = false"
+                           class="flex items-center justify-center gap-2 w-full bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-emerald-700 transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+                            Download Excel
+                        </a>
+                    </div>
+                </div>
                 <a href="{{ route('attendances.create') }}"
                    class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-600/20 hover:bg-blue-700 transition">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -17,7 +48,8 @@
                     </svg>
                     Take Attendance
                 </a>
-            @endcan
+                @endcan
+            </div>
         </div>
 
         @if(session('success'))

@@ -9,10 +9,12 @@ use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Notifications\SystemNotification;
+use App\Traits\ExportsToExcel;
 use Illuminate\Http\Request;
 
 class AttendanceController extends Controller
 {
+    use ExportsToExcel;
     public function index(Request $request)
     {
         $classes = SchoolClass::all();
@@ -131,6 +133,38 @@ class AttendanceController extends Controller
         $this->notifyStudentForAttendance($attendance);
 
         return redirect()->route('attendances.index')->with('success', 'Attendance updated successfully.');
+    }
+
+    public function exportCsv(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $attendances = Attendance::with(['student', 'teacher', 'schoolClass', 'subject'])
+            ->when($request->filled('class_id'),  fn($q) => $q->where('class_id', $request->class_id))
+            ->when($request->filled('status'),    fn($q) => $q->where('status', $request->status))
+            ->when($request->filled('date_from'), fn($q) => $q->where('attendance_date', '>=', $request->date_from))
+            ->when($request->filled('date_to'),   fn($q) => $q->where('attendance_date', '<=', $request->date_to))
+            ->when($request->filled('date'),      fn($q) => $q->where('attendance_date', $request->date))
+            ->orderBy('attendance_date', 'desc')
+            ->get();
+
+        $className = $request->filled('class_id')
+            ? (\App\Models\SchoolClass::find($request->class_id)?->name ?? 'Class')
+            : null;
+
+        $rows = $attendances->map(fn($a) => [
+            $a->attendance_date,
+            trim(($a->student->first_name ?? '') . ' ' . ($a->student->last_name ?? '')),
+            $a->schoolClass->name ?? '',
+            $a->subject->name ?? '',
+            trim(($a->teacher->first_name ?? '') . ' ' . ($a->teacher->last_name ?? '')),
+            $a->status,
+        ]);
+
+        return $this->xlsResponse(
+            $className ? "Attendance — {$className}" : 'Attendance — All Classes',
+            ['Date', 'Student', 'Class', 'Subject', 'Teacher', 'Status'],
+            $rows,
+            $className ? 'attendance_' . \Str::slug($className) : 'attendance_all'
+        );
     }
 
     public function destroy(Attendance $attendance)
