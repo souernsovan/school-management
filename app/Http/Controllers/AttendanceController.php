@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Notifications\SystemNotification;
 use App\Traits\ExportsToExcel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AttendanceController extends Controller
 {
@@ -28,9 +29,30 @@ class AttendanceController extends Controller
             'late'     => Attendance::where('attendance_date', $today)->whereIn('status', ['Late', 'Permission'])->count(),
         ];
 
+        // Build a DB-driver compatible teacher name expression (SQLite uses ||, MySQL/Postgres can use CONCAT)
+        $driver = DB::getDriverName();
+        if ($driver === 'sqlite') {
+            $teacherNameExpr = "MIN(teachers.first_name || ' ' || teachers.last_name) AS teacher_name";
+        } else {
+            $teacherNameExpr = "MIN(CONCAT(teachers.first_name, ' ', teachers.last_name)) AS teacher_name";
+        }
+
+        $selects = [
+            'attendances.attendance_date',
+            'attendances.class_id',
+            'school_classes.name AS class_name',
+            'school_classes.section AS class_section',
+            DB::raw($teacherNameExpr),
+            DB::raw("COUNT(*) AS total"),
+            DB::raw("SUM(CASE WHEN attendances.status = 'Present' THEN 1 ELSE 0 END) AS present_count"),
+            DB::raw("SUM(CASE WHEN attendances.status = 'Absent' THEN 1 ELSE 0 END) AS absent_count"),
+            DB::raw("SUM(CASE WHEN attendances.status = 'Late' THEN 1 ELSE 0 END) AS late_count"),
+            DB::raw("SUM(CASE WHEN attendances.status = 'Permission' THEN 1 ELSE 0 END) AS permission_count"),
+        ];
+
         $sessions = Attendance::join('school_classes', 'attendances.class_id', '=', 'school_classes.id')
             ->leftJoin('teachers', 'attendances.teacher_id', '=', 'teachers.id')
-            ->selectRaw('\n                attendances.attendance_date,\n                attendances.class_id,\n                school_classes.name        AS class_name,\n                school_classes.section     AS class_section,\n                MIN(CONCAT(teachers.first_name, \' \' , teachers.last_name)) AS teacher_name,\n                COUNT(*)                                                  AS total,\n                SUM(CASE WHEN attendances.status = \'Present\' THEN 1 ELSE 0 END)                       AS present_count,\n                SUM(CASE WHEN attendances.status = \'Absent\' THEN 1 ELSE 0 END)                        AS absent_count,\n                SUM(CASE WHEN attendances.status = \'Late\' THEN 1 ELSE 0 END)                          AS late_count,\n                SUM(CASE WHEN attendances.status = \'Permission\' THEN 1 ELSE 0 END)                    AS permission_count\n            ')
+            ->select($selects)
             ->when($request->filled('class_id'), fn($q) => $q->where('attendances.class_id', $request->class_id))
             ->when($request->filled('date'),     fn($q) => $q->where('attendances.attendance_date', $request->date))
             ->groupBy('attendances.attendance_date', 'attendances.class_id', 'school_classes.name', 'school_classes.section')

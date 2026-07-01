@@ -8,6 +8,8 @@ RUN apk add --no-cache \
         nodejs npm \
     && docker-php-ext-configure gd --with-jpeg --with-freetype \
     && docker-php-ext-install pdo pdo_mysql pdo_pgsql mbstring zip gd bcmath exif \
+    # enable opcache extension and create opcache config
+    && docker-php-ext-install opcache || true \
     && rm -rf /var/cache/apk/*
 
 # Composer
@@ -25,6 +27,10 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction \
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf.template
 COPY docker/start.sh /start.sh
 RUN chmod +x /start.sh
+
+# PHP opcache settings
+RUN mkdir -p /usr/local/etc/php/conf.d \
+    && printf "opcache.enable=1\nopcache.memory_consumption=192\nopcache.max_accelerated_files=10000\nopcache.validate_timestamps=0\nopcache.revalidate_freq=0\n" > /usr/local/etc/php/conf.d/opcache.ini
 
 EXPOSE 8080
 CMD ["/start.sh"]
